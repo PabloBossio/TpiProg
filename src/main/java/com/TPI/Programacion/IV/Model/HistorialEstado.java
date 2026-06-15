@@ -4,20 +4,22 @@ import java.time.LocalDateTime;
 
 public class HistorialEstado {
     private Long id;
-    private String estadoAnterior;
-    private String estadoNuevo;
+    private EstadoSubasta estadoAnterior;
+    private EstadoSubasta estadoNuevo;
     private LocalDateTime fechaCambio;
     private String motivo;
 
+    private Usuario usuarioResp;
+
     public HistorialEstado() {}
 
-    public HistorialEstado(Long id, String estadoAnterior, String estadoNuevo,
-                           LocalDateTime fechaCambio, String motivo) {
+    public HistorialEstado(Long id, EstadoSubasta estadoAnterior, EstadoSubasta estadoNuevo, LocalDateTime fechaCambio, String motivo, Usuario usuarioResp) {
         this.id = id;
         this.estadoAnterior = estadoAnterior;
         this.estadoNuevo = estadoNuevo;
         this.fechaCambio = fechaCambio;
         this.motivo = motivo;
+        this.usuarioResp = usuarioResp;
     }
 
     public Long getId() {
@@ -28,19 +30,19 @@ public class HistorialEstado {
         this.id = id;
     }
 
-    public String getEstadoAnterior() {
+    public EstadoSubasta getEstadoAnterior() {
         return estadoAnterior;
     }
 
-    public void setEstadoAnterior(String estadoAnterior) {
+    public void setEstadoAnterior(EstadoSubasta estadoAnterior) {
         this.estadoAnterior = estadoAnterior;
     }
 
-    public String getEstadoNuevo() {
+    public EstadoSubasta getEstadoNuevo() {
         return estadoNuevo;
     }
 
-    public void setEstadoNuevo(String estadoNuevo) {
+    public void setEstadoNuevo(EstadoSubasta estadoNuevo) {
         this.estadoNuevo = estadoNuevo;
     }
 
@@ -58,5 +60,13 @@ public class HistorialEstado {
 
     public void setMotivo(String motivo) {
         this.motivo = motivo;
+    }
+
+    public Usuario getUsuarioResp() {
+        return usuarioResp;
+    }
+
+    public void setUsuarioResp(Usuario usuarioResp) {
+        this.usuarioResp = usuarioResp;
     }
 }
