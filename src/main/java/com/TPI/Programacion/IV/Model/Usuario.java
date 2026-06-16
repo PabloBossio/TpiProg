@@ -1,54 +1,55 @@
 package com.TPI.Programacion.IV.Model;
 
+import jakarta.persistence.*;
+import lombok.AllArgsConstructor;
+import lombok.Data;
+import lombok.NoArgsConstructor;
 import java.util.ArrayList;
 import java.util.List;
 
+@Entity
+@Table(name = "usuarios")
+@Data
+@NoArgsConstructor
+@AllArgsConstructor
 public class Usuario {
 
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
+
+    @Column(name = "nombre_usuario", nullable = false, unique = true, length = 100)
     private String nombreUsuario;
+
+    @Column(name = "email", nullable = false, unique = true, length = 150)
     private String email;
+
+    @Column(name = "password_hash", nullable = false, length = 255)
     private String passwordHash;
-    private boolean estaBloqueado;
+
+    @Column(name = "esta_bloqueado", nullable = false)
+    private boolean estaBloqueado = false;
 
 
+
+    @ManyToMany(fetch = FetchType.EAGER)
+    @JoinTable(
+            name = "usuario_rol",
+            joinColumns = @JoinColumn(name = "usuario_id"),
+            inverseJoinColumns = @JoinColumn(name = "rol_id")
+    )
     private List<Rol> roles = new ArrayList<>();
+
+    @OneToMany(mappedBy = "usuario", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     private List<Puja> misPujas = new ArrayList<>();
+
+    @OneToMany(mappedBy = "usuario", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     private List<Notificacion> notificaciones = new ArrayList<>();
-
-
-    public Usuario() {
-    }
-
-    public Long getId() { return id; }
-    public void setId(Long id) { this.id = id; }
-
-    public String getNombreUsuario() { return nombreUsuario; }
-    public void setNombreUsuario(String nombreUsuario) { this.nombreUsuario = nombreUsuario; }
-
-    public String getEmail() { return email; }
-    public void setEmail(String email) { this.email = email; }
-
-    public String getPasswordHash() { return passwordHash; }
-    public void setPasswordHash(String passwordHash) { this.passwordHash = passwordHash; }
-
-    public boolean isEstaBloqueado() { return estaBloqueado; }
-    public void setEstaBloqueado(boolean estaBloqueado) { this.estaBloqueado = estaBloqueado; }
-
-    public List<Rol> getRoles() { return roles; }
-    public void setRoles(List<Rol> roles) { this.roles = roles; }
-
-    public List<Puja> getMisPujas() { return misPujas; }
-    public void setMisPujas(List<Puja> misPujas) { this.misPujas = misPujas; }
-
-    public List<Notificacion> getNotificaciones() { return notificaciones; }
-    public void setNotificaciones(List<Notificacion> notificaciones) { this.notificaciones = notificaciones; }
 
 
     public void bloquearUsuario() {
         this.estaBloqueado = true;
     }
-
 
     public void desbloquearUsuario() {
         this.estaBloqueado = false;
@@ -65,6 +66,5 @@ public class Usuario {
         }
         return false;
     }
-
 }
 

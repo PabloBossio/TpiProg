@@ -1,72 +1,41 @@
 package com.TPI.Programacion.IV.Model;
 
+import jakarta.persistence.*;
+import lombok.AllArgsConstructor;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+
 import java.time.LocalDateTime;
 
+@Entity
+@Table(name = "historial_estados")
+@Data
+@NoArgsConstructor
+@AllArgsConstructor
 public class HistorialEstado {
+
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "estado_anterior", nullable = false)
     private EstadoSubasta estadoAnterior;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "estado_nuevo", nullable = false)
     private EstadoSubasta estadoNuevo;
+
+    @Column(name = "fecha_cambio", nullable = false)
     private LocalDateTime fechaCambio;
+
+    @Column(name = "motivo", length = 255)
     private String motivo;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "usuario_resp_id", nullable = false)
     private Usuario usuarioResp;
 
-    public HistorialEstado() {}
 
-    public HistorialEstado(Long id, EstadoSubasta estadoAnterior, EstadoSubasta estadoNuevo, LocalDateTime fechaCambio, String motivo, Usuario usuarioResp) {
-        this.id = id;
-        this.estadoAnterior = estadoAnterior;
-        this.estadoNuevo = estadoNuevo;
-        this.fechaCambio = fechaCambio;
-        this.motivo = motivo;
-        this.usuarioResp = usuarioResp;
-    }
 
-    public Long getId() {
-        return id;
-    }
-
-    public void setId(Long id) {
-        this.id = id;
-    }
-
-    public EstadoSubasta getEstadoAnterior() {
-        return estadoAnterior;
-    }
-
-    public void setEstadoAnterior(EstadoSubasta estadoAnterior) {
-        this.estadoAnterior = estadoAnterior;
-    }
-
-    public EstadoSubasta getEstadoNuevo() {
-        return estadoNuevo;
-    }
-
-    public void setEstadoNuevo(EstadoSubasta estadoNuevo) {
-        this.estadoNuevo = estadoNuevo;
-    }
-
-    public LocalDateTime getFechaCambio() {
-        return fechaCambio;
-    }
-
-    public void setFechaCambio(LocalDateTime fechaCambio) {
-        this.fechaCambio = fechaCambio;
-    }
-
-    public String getMotivo() {
-        return motivo;
-    }
-
-    public void setMotivo(String motivo) {
-        this.motivo = motivo;
-    }
-
-    public Usuario getUsuarioResp() {
-        return usuarioResp;
-    }
-
-    public void setUsuarioResp(Usuario usuarioResp) {
-        this.usuarioResp = usuarioResp;
-    }
 }

@@ -7,5 +7,5 @@ public enum EstadoSubasta {
     FINALIZADA,
     CANCELADA,
     ADJUDICADA,
-    EN_DISPÚTA
+    EN_DISPUTA
 }

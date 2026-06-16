@@ -1,84 +1,82 @@
 package com.TPI.Programacion.IV.Model;
 
+import jakarta.persistence.*;
+import lombok.AllArgsConstructor;
+import lombok.Data;
+import lombok.NoArgsConstructor;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.List;
 
+@Entity
+@Table(name = "subastas")
+@Data
+@NoArgsConstructor
+@AllArgsConstructor
 public class Subasta {
 
-
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
+
+    @Column(name = "precio_base", nullable = false, precision = 12, scale = 2)
     private BigDecimal precioBase;
+
+    @Column(name = "monto_actual", nullable = false, precision = 12, scale = 2)
     private BigDecimal montoActual;
+
+    @Column(name = "fecha_inicio", nullable = false)
     private LocalDateTime fechaInicio;
+
+    @Column(name = "fecha_cierre", nullable = false)
     private LocalDateTime fechaCierre;
+
+    @Column(name = "fecha_adjudicacion")
     private LocalDateTime fechaAdjudicacion;
+
+    @Column(name = "incremento_minimo", nullable = false, precision = 12, scale = 2)
     private BigDecimal incrementoMinimo;
+
+    @Column(name = "descripcion", length = 1000)
     private String descripcion;
-    private EstadoSubasta estado; // Enum (BORRADOR, ACTIVA, ADJUDICADA, etc.)
-    private Integer version; // Para el Bloqueo Optimista de Concurrencia
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "estado", nullable = false)
+    private EstadoSubasta estado;
+
+    @Version
+    @Column(name = "version")
+    private Integer version;
 
 
+
+    @OneToOne(fetch = FetchType.LAZY, cascade = CascadeType.ALL)
+    @JoinColumn(name = "producto_id", nullable = false, unique = true)
     private Producto producto;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "categoria_id", nullable = false)
     private Categoria categoria;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "vendedor_id", nullable = false)
     private Usuario vendedor;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "ganador_id")
     private Usuario ganador;
+
+
+    @OneToMany(mappedBy = "subasta", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<Puja> pujas = new ArrayList<>();
+
+    @OneToMany(cascade = CascadeType.ALL, orphanRemoval = true)
+    @JoinColumn(name = "subasta_id")
     private List<HistorialEstado> historialEstados = new ArrayList<>();
 
 
-    public Subasta() {
-    }
-
-    public Long getId() { return id; }
-    public void setId(Long id) { this.id = id; }
-
-    public BigDecimal getPrecioBase() { return precioBase; }
-    public void setPrecioBase(BigDecimal precioBase) { this.precioBase = precioBase; }
-
-    public BigDecimal getMontoActual() { return montoActual; }
-    public void setMontoActual(BigDecimal montoActual) { this.montoActual = montoActual; }
-
-    public LocalDateTime getFechaInicio() { return fechaInicio; }
-    public void setFechaInicio(LocalDateTime fechaInicio) { this.fechaInicio = fechaInicio; }
-
-    public LocalDateTime getFechaCierre() { return fechaCierre; }
-    public void setFechaCierre(LocalDateTime fechaCierre) { this.fechaCierre = fechaCierre; }
-
-    public LocalDateTime getFechaAdjudicacion() { return fechaAdjudicacion; }
-    public void setFechaAdjudicacion(LocalDateTime fechaAdjudicacion) { this.fechaAdjudicacion = fechaAdjudicacion; }
-
-    public BigDecimal getIncrementoMinimo() { return incrementoMinimo; }
-    public void setIncrementoMinimo(BigDecimal incrementoMinimo) { this.incrementoMinimo = incrementoMinimo; }
-
-    public String getDescripcion() { return descripcion; }
-    public void setDescripcion(String descripcion) { this.descripcion = descripcion; }
-
-    public EstadoSubasta getEstado() { return estado; }
-    public void setEstado(EstadoSubasta estado) { this.estado = estado; }
-
-    public Integer getVersion() { return version; }
-    public void setVersion(Integer version) { this.version = version; }
-
-    public Producto getProducto() { return producto; }
-    public void setProducto(Producto producto) { this.producto = producto; }
-
-    public Categoria getCategoria() { return categoria; }
-    public void setCategoria(Categoria categoria) { this.categoria = categoria; }
-
-    public Usuario getVendedor() { return vendedor; }
-    public void setVendedor(Usuario vendedor) { this.vendedor = vendedor; }
-
-    public Usuario getGanador() { return ganador; }
-    public void setGanador(Usuario ganador) { this.ganador = ganador; }
-
-    public List<Puja> getPujas() { return pujas; }
-    public void setPujas(List<Puja> pujas) { this.pujas = pujas; }
-
-    public List<HistorialEstado> getHistorialEstados() { return historialEstados; }
-    public void setHistorialEstados(List<HistorialEstado> historialEstados) { this.historialEstados = historialEstados; }
 
 
     public boolean validarPeriodoMaximo() {
@@ -92,7 +90,6 @@ public class Subasta {
         return !this.fechaCierre.isAfter(limiteMaximo);
     }
 
-
     public boolean tieneTiempoParaDisputa() {
         if (this.fechaAdjudicacion == null) {
             return false;
@@ -102,9 +99,8 @@ public class Subasta {
         return ahoraUtc.isBefore(limiteDisputa);
     }
 
-
     public boolean validarNuevaPuja(BigDecimal montoOferta, Usuario usuarioOferente) {
-        // 1. Debe estar estrictamente en estado ACTIVA
+
         if (this.estado != EstadoSubasta.ACTIVA) {
             return false;
         }
@@ -115,31 +111,27 @@ public class Subasta {
             return false;
         }
 
-
-        if (this.vendedor != null && usuarioOferente.getId().equals(this.vendedor.getId())) {
+        if (this.vendedor != null && usuarioOferente != null &&
+                java.util.Objects.equals(usuarioOferente.getId(), this.vendedor.getId())) {
             return false;
         }
 
-
-        if (usuarioOferente.isEstaBloqueado()) {
+        if (usuarioOferente != null && usuarioOferente.isEstaBloqueado()) {
             return false;
         }
-
 
         if (this.pujas == null || this.pujas.isEmpty()) {
-            // Primera puja: debe ser igual o mayor al precio base
             if (montoOferta.compareTo(this.precioBase) < 0) {
                 return false;
             }
         } else {
-
             BigDecimal minimoRequerido = this.montoActual.add(this.incrementoMinimo);
             if (montoOferta.compareTo(minimoRequerido) < 0) {
                 return false;
             }
         }
 
-        return true; // Cumple con todos los requisitos
+        return true;
     }
 
 
@@ -154,5 +146,4 @@ public class Subasta {
         this.historialEstados.add(registro);
         this.estado = nuevoEstado;
     }
-
 }

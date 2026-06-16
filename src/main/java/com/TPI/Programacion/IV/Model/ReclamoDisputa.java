@@ -1,63 +1,41 @@
 package com.TPI.Programacion.IV.Model;
 
+import jakarta.persistence.*;
+import lombok.AllArgsConstructor;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+
 import java.time.LocalDateTime;
 
+@Entity
+@Table(name = "reclamo_disputa")
+@Data
+@NoArgsConstructor
+@AllArgsConstructor
 public class ReclamoDisputa {
+
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
+
+    @Column(name = "motivo", nullable = false, length = 150)
     private String motivo;
+
+    @Column(name = "descripcion", nullable = false, length = 1000)
     private String descripcion;
+
+    @Column(name = "fecha_creacion", nullable = false)
     private LocalDateTime fechaCreacion;
+
+    @Column(name = "resolucion_administrativa", length = 1000)
     private String resolucionAdministrativa;
 
-    public ReclamoDisputa() {}
+    @OneToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "Subasta_id", nullable = false)
+    private Subasta subasta;
 
-    public ReclamoDisputa(Long id, String motivo, String descripcion,
-                          LocalDateTime fechaCreacion,
-                          String resolucionAdministrativa) {
-        this.id = id;
-        this.motivo = motivo;
-        this.descripcion = descripcion;
-        this.fechaCreacion = fechaCreacion;
-        this.resolucionAdministrativa = resolucionAdministrativa;
-    }
+   @ManyToOne(fetch = FetchType.LAZY)
+   @JoinColumn(name = "usuario_demandante_id", nullable = false)
+    private Usuario usuarioDemandante;
 
-    public Long getId() {
-        return id;
-    }
-
-    public void setId(Long id) {
-        this.id = id;
-    }
-
-    public String getMotivo() {
-        return motivo;
-    }
-
-    public void setMotivo(String motivo) {
-        this.motivo = motivo;
-    }
-
-    public String getDescripcion() {
-        return descripcion;
-    }
-
-    public void setDescripcion(String descripcion) {
-        this.descripcion = descripcion;
-    }
-
-    public LocalDateTime getFechaCreacion() {
-        return fechaCreacion;
-    }
-
-    public void setFechaCreacion(LocalDateTime fechaCreacion) {
-        this.fechaCreacion = fechaCreacion;
-    }
-
-    public String getResolucionAdministrativa() {
-        return resolucionAdministrativa;
-    }
-
-    public void setResolucionAdministrativa(String resolucionAdministrativa) {
-        this.resolucionAdministrativa = resolucionAdministrativa;
-    }
 }

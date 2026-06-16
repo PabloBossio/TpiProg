@@ -1,29 +1,28 @@
 package com.TPI.Programacion.IV.Model;
 
+import jakarta.persistence.*;
+import lombok.AllArgsConstructor;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+
+import java.util.ArrayList;
+import java.util.List;
+
+@Entity
+@Table(name = "rol")
+@Data
+@NoArgsConstructor
+@AllArgsConstructor
 public class Rol {
+
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
+
+    @Column(name = "nombre_rol", nullable = false, unique = true, length = 50)
     private String nombreRol;
 
-    public Rol() {}
+    @ManyToMany(mappedBy = "roles", fetch = FetchType.LAZY)
+    private List<Usuario> listaUsuarios  = new ArrayList<>();
 
-    public Rol(Long id, String nombreRol) {
-        this.id = id;
-        this.nombreRol = nombreRol;
-    }
-
-    public Long getId() {
-        return id;
-    }
-
-    public void setId(Long id) {
-        this.id = id;
-    }
-
-    public String getNombreRol() {
-        return nombreRol;
-    }
-
-    public void setNombreRol(String nombreRol) {
-        this.nombreRol = nombreRol;
-    }
 }
