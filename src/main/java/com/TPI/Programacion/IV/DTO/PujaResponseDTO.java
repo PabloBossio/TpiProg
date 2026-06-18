@@ -1,4 +1,4 @@
-package com.TPI.Programacion.IV.Dto;
+package com.TPI.Programacion.IV.DTO;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;

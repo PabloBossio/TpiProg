@@ -1,4 +1,4 @@
-package com.TPI.Programacion.IV.Dto;
+package com.TPI.Programacion.IV.DTO;
 
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;

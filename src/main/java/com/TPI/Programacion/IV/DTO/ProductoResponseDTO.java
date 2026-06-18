@@ -1,4 +1,4 @@
-package com.TPI.Programacion.IV.Dto;
+package com.TPI.Programacion.IV.DTO;
 
 public record ProductoResponseDTO(
         Long id,
