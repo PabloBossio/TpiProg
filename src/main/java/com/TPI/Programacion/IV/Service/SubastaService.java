@@ -24,7 +24,6 @@ public class SubastaService {
 
     @Transactional
     public SubastaResponseDTO crearSubasta(SubastaRequestDTO request, Long vendedorId) {
-        // 1. Buscar relaciones obligatorias
         Categoria categoria = categoryRepository.findById(request.categoriaId())
                 .orElseThrow(() -> new RuntimeException("Categoría no encontrada"));
         Usuario vendedor = usuarioRepository.findById(vendedorId)
@@ -76,7 +75,7 @@ public class SubastaService {
 
         subasta.getPujas().add(nuevaPuja);
         subasta.setMontoActual(pujaRequest.monto());
-        subasta.setGanador(oferente); // Va ganando el último en ofertar de forma válida
+        subasta.setGanador(oferente);
 
         Subasta actualizada = subastaRepository.save(subasta);
         return mapearADto(actualizada);
