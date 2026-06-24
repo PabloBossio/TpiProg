@@ -1,10 +1,14 @@
 package com.TPI.Programacion.IV.Service;
 
+import com.TPI.Programacion.IV.DTO.UsuarioRequestDTO;
+import com.TPI.Programacion.IV.DTO.UsuarioResponseDTO;
 import com.TPI.Programacion.IV.Model.Usuario;
 import com.TPI.Programacion.IV.Repository.UsuarioRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
-import java.util.List;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.util.stream.Collectors;
 
 @Service
 public class UsuarioService {
@@ -12,45 +16,33 @@ public class UsuarioService {
     @Autowired
     private UsuarioRepository usuarioRepository;
 
-    public Usuario crear(Usuario usuario){
+    @Transactional
+    public UsuarioResponseDTO registrarUsuario(UsuarioRequestDTO request) {
+        Usuario usuario = new Usuario();
+        usuario.setNombreUsuario(request.nombreUsuario());
+        usuario.setEmail(request.email());
 
-        if(usuario.getEmail() == null || usuario.getEmail().isEmpty()){
-            throw new RuntimeException("El email es obligatorio");
-        }
-
-        return usuarioRepository.save(usuario);
-    }
-
-    public List<Usuario> listar(){
-        return usuarioRepository.findAll();
-    }
-
-    public Usuario buscarPorId(Long id){
-        return usuarioRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Usuario no encontrado"));
-    }
-
-    public Usuario editar(Long id, Usuario usuarioActualizado){
-        Usuario usuario = buscarPorId(id);
-        usuario.setNombreUsuario(usuarioActualizado.getNombreUsuario());
-        usuario.setEmail(usuarioActualizado.getEmail());
-        return usuarioRepository.save(usuario);
-    }
-
-    public void eliminar(Long id){
-        Usuario usuario = buscarPorId(id);
-        usuarioRepository.delete(usuario);
-    }
-
-    public Usuario bloquearUsuario(Long id){
-        Usuario usuario = buscarPorId(id);
-        usuario.setEstaBloqueado(true);
-        return usuarioRepository.save(usuario);
-    }
-
-    public Usuario desbloquearUsuario(Long id){
-        Usuario usuario = buscarPorId(id);
+        usuario.setPasswordHash("$2a$10$" + request.password().hashCode());
         usuario.setEstaBloqueado(false);
-        return usuarioRepository.save(usuario);
+
+        Usuario guardado = usuarioRepository.save(usuario);
+
+        return mapearADto(guardado);
+    }
+
+    public UsuarioResponseDTO obtenerPorId(Long id) {
+        Usuario usuario = usuarioRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Usuario no encontrado con ID: " + id));
+        return mapearADto(usuario);
+    }
+
+    public UsuarioResponseDTO mapearADto(Usuario usuario) {
+        return new UsuarioResponseDTO(
+                usuario.getId(),
+                usuario.getNombreUsuario(),
+                usuario.getEmail(),
+                usuario.isEstaBloqueado(),
+                usuario.getRoles().stream().map(rol -> rol.getNombreRol()).collect(Collectors.toList())
+        );
     }
 }
