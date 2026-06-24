@@ -30,8 +30,6 @@ public class Usuario {
     @Column(name = "esta_bloqueado", nullable = false)
     private boolean estaBloqueado = false;
 
-
-
     @ManyToMany(fetch = FetchType.EAGER)
     @JoinTable(
             name = "usuario_rol",
