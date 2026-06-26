@@ -2,12 +2,15 @@ package com.TPI.Programacion.IV.Service;
 
 import com.TPI.Programacion.IV.DTO.UsuarioRequestDTO;
 import com.TPI.Programacion.IV.DTO.UsuarioResponseDTO;
+import com.TPI.Programacion.IV.Model.Rol;
 import com.TPI.Programacion.IV.Model.Usuario;
+import com.TPI.Programacion.IV.Repository.RolRepository;
 import com.TPI.Programacion.IV.Repository.UsuarioRepository;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-
+import java.util.Collections;
 import java.util.stream.Collectors;
 
 @Service
@@ -16,17 +19,25 @@ public class UsuarioService {
     @Autowired
     private UsuarioRepository usuarioRepository;
 
+    @Autowired
+    private RolRepository rolRepository;
+
+    @Autowired
+    private PasswordEncoder passwordEncoder;
+
     @Transactional
     public UsuarioResponseDTO registrarUsuario(UsuarioRequestDTO request) {
         Usuario usuario = new Usuario();
         usuario.setNombreUsuario(request.nombreUsuario());
         usuario.setEmail(request.email());
-
-        usuario.setPasswordHash("$2a$10$" + request.password().hashCode());
+        usuario.setPasswordHash(passwordEncoder.encode(request.password()));
         usuario.setEstaBloqueado(false);
 
-        Usuario guardado = usuarioRepository.save(usuario);
+        rolRepository.findByNombreRol("COMPRADOR").ifPresent(rol -> {
+            usuario.getRoles().add(rol);
+        });
 
+        Usuario guardado = usuarioRepository.save(usuario);
         return mapearADto(guardado);
     }
 
@@ -42,7 +53,9 @@ public class UsuarioService {
                 usuario.getNombreUsuario(),
                 usuario.getEmail(),
                 usuario.isEstaBloqueado(),
-                usuario.getRoles().stream().map(rol -> rol.getNombreRol()).collect(Collectors.toList())
+                usuario.getRoles() != null
+                        ? usuario.getRoles().stream().map(Rol::getNombreRol).collect(Collectors.toList())
+                        : Collections.emptyList()
         );
     }
 }
