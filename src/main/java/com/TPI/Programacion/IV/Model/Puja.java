@@ -10,7 +10,7 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "Puja")
+@Table(name = "pujas")
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
@@ -32,6 +32,6 @@ public class Puja {
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "usuario_id", nullable = false)
-    private Usuario us;
+    private Usuario usuario;
 
 }
