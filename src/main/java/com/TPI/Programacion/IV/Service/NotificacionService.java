@@ -17,7 +17,7 @@ public class NotificacionService {
 
     @Transactional(readOnly = true)
     public List<NotificacionResponseDTO> obtenerPorUsuario(Long usuarioId) {
-        List<Notificacion> notificaciones = notificacionRepository.findByUsuarioId(usuarioId);
+        List<Notificacion> notificaciones = notificacionRepository.findByUsId(usuarioId);
         return notificaciones.stream().map(n -> new NotificacionResponseDTO(
                 n.getId(),
                 n.getMensaje(),

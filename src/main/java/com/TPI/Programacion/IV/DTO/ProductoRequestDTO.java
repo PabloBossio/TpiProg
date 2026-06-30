@@ -9,5 +9,8 @@ public record ProductoRequestDTO(
         String nombre,
 
         @Size(max = 1000, message = "La descripción no puede superar los 1000 caracteres")
-        String descripcion
+        String descripcion,
+
+        @Size(max = 500, message = "La URL de la imagen no puede superar los 500 caracteres")
+        String imagenUrl
 ) {}

@@ -31,3 +31,6 @@ build/
 
 ### VS Code ###
 .vscode/
+
+### Frontend build output (generado por Maven/Vite) ###
+src/main/resources/static/

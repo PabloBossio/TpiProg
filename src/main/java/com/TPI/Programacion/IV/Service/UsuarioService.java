@@ -10,20 +10,17 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
 import java.util.Collections;
+import java.util.List;
 import java.util.stream.Collectors;
 
 @Service
 public class UsuarioService {
 
-    @Autowired
-    private UsuarioRepository usuarioRepository;
-
-    @Autowired
-    private RolRepository rolRepository;
-
-    @Autowired
-    private PasswordEncoder passwordEncoder;
+    @Autowired private UsuarioRepository usuarioRepository;
+    @Autowired private RolRepository rolRepository;
+    @Autowired private PasswordEncoder passwordEncoder;
 
     @Transactional
     public UsuarioResponseDTO registrarUsuario(UsuarioRequestDTO request) {
@@ -33,18 +30,37 @@ public class UsuarioService {
         usuario.setPasswordHash(passwordEncoder.encode(request.password()));
         usuario.setEstaBloqueado(false);
 
-        rolRepository.findByNombreRol("COMPRADOR").ifPresent(rol -> {
-            usuario.getRoles().add(rol);
-        });
+        rolRepository.findByNombreRol("COMPRADOR").ifPresent(rol -> usuario.getRoles().add(rol));
 
-        Usuario guardado = usuarioRepository.save(usuario);
-        return mapearADto(guardado);
+        return mapearADto(usuarioRepository.save(usuario));
     }
 
+    @Transactional(readOnly = true)
+    public List<UsuarioResponseDTO> listarTodos() {
+        return usuarioRepository.findAll().stream().map(this::mapearADto).collect(Collectors.toList());
+    }
+
+    @Transactional(readOnly = true)
     public UsuarioResponseDTO obtenerPorId(Long id) {
         Usuario usuario = usuarioRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Usuario no encontrado con ID: " + id));
         return mapearADto(usuario);
+    }
+
+    @Transactional
+    public UsuarioResponseDTO bloquear(Long id) {
+        Usuario usuario = usuarioRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Usuario no encontrado con ID: " + id));
+        usuario.bloquearUsuario();
+        return mapearADto(usuarioRepository.save(usuario));
+    }
+
+    @Transactional
+    public UsuarioResponseDTO desbloquear(Long id) {
+        Usuario usuario = usuarioRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Usuario no encontrado con ID: " + id));
+        usuario.desbloquearUsuario();
+        return mapearADto(usuarioRepository.save(usuario));
     }
 
     public UsuarioResponseDTO mapearADto(Usuario usuario) {
@@ -55,7 +71,6 @@ public class UsuarioService {
                 usuario.isEstaBloqueado(),
                 usuario.getRoles() != null
                         ? usuario.getRoles().stream().map(Rol::getNombreRol).collect(Collectors.toList())
-                        : Collections.emptyList()
-        );
+                        : Collections.emptyList());
     }
 }

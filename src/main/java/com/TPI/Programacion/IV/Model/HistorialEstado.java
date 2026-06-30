@@ -33,9 +33,11 @@ public class HistorialEstado {
     private String motivo;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "usuario_resp_id", nullable = false)
+    @JoinColumn(name = "usuario_resp_id", nullable = true)
     private Usuario usuarioResp;
 
-
-
+    // Referencia read-only; la FK subasta_id la gestiona Subasta.historialEstados
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "subasta_id", insertable = false, updatable = false)
+    private Subasta subasta;
 }

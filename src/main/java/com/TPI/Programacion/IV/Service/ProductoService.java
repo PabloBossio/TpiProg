@@ -1,6 +1,8 @@
 package com.TPI.Programacion.IV.Service;
 
 
+import com.TPI.Programacion.IV.DTO.ProductoRequestDTO;
+import com.TPI.Programacion.IV.DTO.ProductoResponseDTO;
 import com.TPI.Programacion.IV.Model.Producto;
 import com.TPI.Programacion.IV.Repository.ProductoRepository;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -48,5 +50,15 @@ public class ProductoService {
         Producto producto = buscarPorId(id);
 
         productoRepository.delete(producto);
+    }
+
+    public ProductoResponseDTO actualizar(Long id, ProductoRequestDTO request) {
+        Producto producto = buscarPorId(id);
+        producto.setNombre(request.nombre());
+        producto.setDescripcion(request.descripcion());
+        producto.setImagenUrl(request.imagenUrl());
+        Producto guardado = productoRepository.save(producto);
+        return new ProductoResponseDTO(guardado.getId(), guardado.getNombre(),
+                guardado.getDescripcion(), guardado.getImagenUrl());
     }
 }

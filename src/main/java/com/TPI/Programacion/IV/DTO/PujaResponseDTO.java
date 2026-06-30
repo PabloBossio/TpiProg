@@ -7,6 +7,6 @@ public record PujaResponseDTO(
         Long id,
         BigDecimal monto,
         LocalDateTime fechaPuja,
-        Long usuarioId,
-        String nombreUsuario
+        Long oferenteId,
+        String oferenteNombre
 ) {}

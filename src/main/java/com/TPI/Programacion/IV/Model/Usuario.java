@@ -41,7 +41,7 @@ public class Usuario {
     @OneToMany(mappedBy = "usuario", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     private List<Puja> misPujas = new ArrayList<>();
 
-    @OneToMany(mappedBy = "usuario", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
+    @OneToMany(mappedBy = "us", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     private List<Notificacion> notificaciones = new ArrayList<>();
 
 
