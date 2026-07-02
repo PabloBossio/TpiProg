@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { subastaService, reclamoService } from '../services/api'
 import { useAuth } from '../context/AuthContext'
 import Countdown from '../components/Countdown'
+import { parseServerDate } from '../lib/dates'
 
 const ESTADO_BADGE = {
   ACTIVA:     { label: 'Activa',     cls: 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30' },
@@ -157,7 +158,7 @@ export default function AuctionDetailPage() {
   const esGanador = user?.username === subasta.ganadorNombre
   const disputaVencida = (() => {
     if (!subasta.fechaAdjudicacion) return false
-    return Date.now() > new Date(subasta.fechaAdjudicacion).getTime() + 86400000
+    return Date.now() > parseServerDate(subasta.fechaAdjudicacion).getTime() + 86400000
   })()
   const puedeAbriDisputa = esAdjudicada && (esVendedor || esGanador)
     && subasta.estado !== 'EN_DISPUTA' && !disputaVencida
@@ -237,11 +238,11 @@ export default function AuctionDetailPage() {
               </div>
               <div>
                 <dt className="text-slate-500 text-xs mb-1">Inicio</dt>
-                <dd className="font-semibold text-slate-200">{new Date(subasta.fechaInicio).toLocaleString('es-AR')}</dd>
+                <dd className="font-semibold text-slate-200">{parseServerDate(subasta.fechaInicio).toLocaleString('es-AR')}</dd>
               </div>
               <div>
                 <dt className="text-slate-500 text-xs mb-1">Cierre</dt>
-                <dd className="font-semibold text-slate-200">{new Date(subasta.fechaCierre).toLocaleString('es-AR')}</dd>
+                <dd className="font-semibold text-slate-200">{parseServerDate(subasta.fechaCierre).toLocaleString('es-AR')}</dd>
               </div>
               {subasta.ganadorNombre && subasta.ganadorNombre !== 'Sin pujas' && (
                 <div className="col-span-2">
@@ -302,7 +303,7 @@ export default function AuctionDetailPage() {
                           </span>
                         )}
                       </p>
-                      <p className="text-xs text-slate-500">{new Date(p.fechaPuja).toLocaleString('es-AR')}</p>
+                      <p className="text-xs text-slate-500">{parseServerDate(p.fechaPuja).toLocaleString('es-AR')}</p>
                     </div>
                     <p className={`font-bold text-base shrink-0 ${idx === 0 ? 'text-indigo-400' : 'text-slate-400'}`}>
                       ${Number(p.monto).toLocaleString('es-AR')}

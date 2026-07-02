@@ -5,8 +5,16 @@ import { useAuth } from '../context/AuthContext'
 
 const inputClass = "w-full px-4 py-2.5 bg-slate-800/60 rounded-xl border border-slate-700/60 focus:outline-none focus:ring-2 focus:ring-indigo-500/60 focus:border-indigo-500/50 text-white placeholder-slate-500 text-sm transition-all duration-200"
 
+// Los inputs <input type="datetime-local"> interpretan su value/min/max como hora LOCAL del
+// navegador (sin offset). toISOString() devuelve UTC, así que usarlo directo desplaza el
+// mínimo varias horas según el huso horario. Este helper formatea en hora local real.
+function toLocalInputValue(date) {
+  const sinOffset = new Date(date.getTime() - date.getTimezoneOffset() * 60000)
+  return sinOffset.toISOString().slice(0, 16)
+}
+
 export default function CreateAuctionPage() {
-  const { user } = useAuth()
+  const { user, isAdmin } = useAuth()
   const navigate = useNavigate()
 
   const [categorias, setCategorias] = useState([])
@@ -19,9 +27,31 @@ export default function CreateAuctionPage() {
     fechaInicio: '', fechaCierre: '',
   })
 
+  const [mostrarNuevaCategoria, setMostrarNuevaCategoria] = useState(false)
+  const [nuevaCategoria, setNuevaCategoria] = useState('')
+  const [categoriaLoading, setCategoriaLoading] = useState(false)
+  const [categoriaError, setCategoriaError] = useState('')
+
   useEffect(() => {
     categoriaService.listar().then(({ data }) => setCategorias(data))
   }, [])
+
+  const handleCrearCategoria = async () => {
+    if (!nuevaCategoria.trim()) { setCategoriaError('Escribí un nombre para la categoría.'); return }
+    setCategoriaLoading(true); setCategoriaError('')
+    try {
+      const { data } = await categoriaService.crear(nuevaCategoria.trim())
+      setCategorias((prev) => [...prev, data])
+      setForm((f) => ({ ...f, categoriaId: String(data.id) }))
+      setNuevaCategoria('')
+      setMostrarNuevaCategoria(false)
+    } catch (err) {
+      const msg = err.response?.data?.message ?? 'No se pudo crear la categoría.'
+      setCategoriaError(typeof msg === 'string' ? msg : 'No se pudo crear la categoría.')
+    } finally {
+      setCategoriaLoading(false)
+    }
+  }
 
   const handleChange = (e) => {
     const { name, value } = e.target
@@ -36,11 +66,11 @@ export default function CreateAuctionPage() {
     setError('')
   }
 
-  const inicioMin = new Date(Date.now() + 60000).toISOString().slice(0, 16)
+  const inicioMin = toLocalInputValue(new Date(Date.now() + 60000))
   const baseInicio = form.fechaInicio ? new Date(form.fechaInicio) : new Date()
-  const cierreMax = new Date(baseInicio.getTime() + 14 * 86400000).toISOString().slice(0, 16)
+  const cierreMax = toLocalInputValue(new Date(baseInicio.getTime() + 14 * 86400000))
   const cierreMin = form.fechaInicio
-    ? new Date(new Date(form.fechaInicio).getTime() + 60000).toISOString().slice(0, 16)
+    ? toLocalInputValue(new Date(new Date(form.fechaInicio).getTime() + 60000))
     : inicioMin
 
   const handleSubmit = async (e) => {
@@ -49,10 +79,12 @@ export default function CreateAuctionPage() {
       setError('Completá todos los campos obligatorios.'); return
     }
     const ahora = new Date()
-    const inicio = form.fechaInicio ? new Date(form.fechaInicio) : ahora
+    // Aproximación solo para la validación en el cliente (UX); si se deja vacía, el
+    // servidor asigna su propia hora UTC actual — nunca confiamos en la del navegador.
+    const inicioAprox = form.fechaInicio ? new Date(form.fechaInicio) : ahora
     const cierre = new Date(form.fechaCierre)
     if (cierre <= ahora) { setError('La fecha de cierre debe ser en el futuro.'); return }
-    if (cierre > new Date(inicio.getTime() + 14 * 86400000)) {
+    if (cierre > new Date(inicioAprox.getTime() + 14 * 86400000)) {
       setError('La fecha de cierre no puede superar los 14 días desde la fecha de inicio.'); return
     }
     setLoading(true)
@@ -60,7 +92,7 @@ export default function CreateAuctionPage() {
       const payload = {
         precioBase: parseFloat(form.precioBase),
         incrementoMinimo: parseFloat(form.incrementoMinimo),
-        fechaInicio: inicio.toISOString().slice(0, 19),
+        fechaInicio: form.fechaInicio ? new Date(form.fechaInicio).toISOString().slice(0, 19) : null,
         fechaCierre: cierre.toISOString().slice(0, 19),
         descripcion: form.descripcionSubasta || null,
         categoriaId: parseInt(form.categoriaId),
@@ -167,9 +199,58 @@ export default function CreateAuctionPage() {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-slate-300 mb-2">
-              Categoría <span className="text-red-400">*</span>
-            </label>
+            <div className="flex items-center justify-between mb-2">
+              <label className="block text-sm font-medium text-slate-300">
+                Categoría <span className="text-red-400">*</span>
+              </label>
+              {isAdmin && !mostrarNuevaCategoria && (
+                <button
+                  type="button"
+                  onClick={() => { setMostrarNuevaCategoria(true); setCategoriaError('') }}
+                  className="text-xs text-indigo-400 hover:text-indigo-300 font-medium cursor-pointer transition-colors"
+                >
+                  + Nueva categoría
+                </button>
+              )}
+            </div>
+
+            {categorias.length === 0 && !mostrarNuevaCategoria && (
+              <p className="text-xs text-amber-400/80 mb-2">
+                Todavía no hay categorías cargadas.{isAdmin ? ' Creá la primera con el botón de arriba.' : ' Pedile a un administrador que cargue alguna.'}
+              </p>
+            )}
+
+            {mostrarNuevaCategoria ? (
+              <div className="border border-indigo-500/20 bg-indigo-500/8 rounded-xl p-4 space-y-3 mb-3">
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={nuevaCategoria}
+                    onChange={(e) => { setNuevaCategoria(e.target.value); setCategoriaError('') }}
+                    placeholder="Ej: Instrumentos musicales"
+                    maxLength={100}
+                    className={inputClass}
+                  />
+                  <button
+                    type="button"
+                    onClick={handleCrearCategoria}
+                    disabled={categoriaLoading}
+                    className="shrink-0 bg-indigo-600 hover:bg-indigo-500 disabled:bg-slate-700 text-white text-sm font-semibold px-4 rounded-xl transition-all duration-200 cursor-pointer disabled:cursor-not-allowed"
+                  >
+                    {categoriaLoading ? '...' : 'Guardar'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => { setMostrarNuevaCategoria(false); setNuevaCategoria(''); setCategoriaError('') }}
+                    className="shrink-0 text-sm text-slate-500 hover:text-slate-300 cursor-pointer px-2 transition-colors"
+                  >
+                    Cancelar
+                  </button>
+                </div>
+                {categoriaError && <p className="text-red-400 text-xs">{categoriaError}</p>}
+              </div>
+            ) : null}
+
             <select
               name="categoriaId" value={form.categoriaId} onChange={handleChange}
               className={`${inputClass} bg-slate-800/60`}

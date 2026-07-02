@@ -41,12 +41,18 @@ public class SubastaController {
     }
 
     @PostMapping("/{id}/pujar")
-    @PreAuthorize("hasAnyRole('USER','COMPRADOR','BUYER','ADMIN')")
+    @PreAuthorize("hasAnyRole('USER','SELLER','ADMIN')")
     public ResponseEntity<SubastaResponseDTO> realizarPuja(
             @PathVariable Long id,
             @RequestParam Long oferenteId,
             @Valid @RequestBody PujaRequestDTO pujaRequest) {
         return ResponseEntity.ok(subastaService.procesarPuja(id, oferenteId, pujaRequest));
+    }
+
+    @PutMapping("/{id}/publicar")
+    @PreAuthorize("hasAnyRole('SELLER','ADMIN')")
+    public ResponseEntity<SubastaResponseDTO> publicarSubasta(@PathVariable Long id) {
+        return ResponseEntity.ok(subastaService.publicarSubasta(id));
     }
 
     @PutMapping("/{id}/cancelar")

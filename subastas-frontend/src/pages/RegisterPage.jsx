@@ -1,6 +1,13 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
+import { rolService } from '../services/api'
+
+const ROL_INFO = {
+  USER: { label: 'Comprador', desc: 'Podés pujar en subastas' },
+  SELLER: { label: 'Vendedor', desc: 'Podés publicar subastas' },
+  ADMIN: { label: 'Administrador', desc: 'Gestión total de la plataforma' },
+}
 
 export default function RegisterPage() {
   const { register } = useAuth()
@@ -9,6 +16,23 @@ export default function RegisterPage() {
   const [form, setForm] = useState({ nombreUsuario: '', email: '', password: '', confirmar: '' })
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
+
+  const [roles, setRoles] = useState([])
+  const [rolesSeleccionados, setRolesSeleccionados] = useState([])
+
+  useEffect(() => {
+    rolService.listar()
+      .then(({ data }) => {
+        setRoles(data)
+        const user = data.find((r) => r.nombreRol === 'USER')
+        if (user) setRolesSeleccionados([user.id])
+      })
+      .catch(() => {})
+  }, [])
+
+  const toggleRol = (id) => {
+    setRolesSeleccionados((sel) => sel.includes(id) ? sel.filter((r) => r !== id) : [...sel, id])
+  }
 
   const handleChange = (e) => {
     setForm((f) => ({ ...f, [e.target.name]: e.target.value }))
@@ -20,9 +44,10 @@ export default function RegisterPage() {
     if (!form.nombreUsuario || !form.email || !form.password) { setError('Completá todos los campos.'); return }
     if (form.password !== form.confirmar) { setError('Las contraseñas no coinciden.'); return }
     if (form.password.length < 6) { setError('La contraseña debe tener al menos 6 caracteres.'); return }
+    if (roles.length > 0 && rolesSeleccionados.length === 0) { setError('Elegí al menos un rol.'); return }
     setLoading(true)
     try {
-      await register(form.nombreUsuario, form.email, form.password)
+      await register(form.nombreUsuario, form.email, form.password, rolesSeleccionados)
       navigate('/login', { state: { registered: true } })
     } catch (err) {
       const msg = err.response?.data?.message ?? err.response?.data ?? 'Error al registrarse.'
@@ -77,6 +102,41 @@ export default function RegisterPage() {
               <input type="password" name="confirmar" value={form.confirmar} onChange={handleChange}
                 placeholder="Repetí la contraseña" autoComplete="new-password" className={inputClass} />
             </div>
+
+            {roles.length > 0 && (
+              <div>
+                <label className="block text-sm font-medium text-slate-300 mb-2">
+                  Roles <span className="text-slate-500 font-normal">(elegí uno o más, para probar distintos flujos)</span>
+                </label>
+                <div className="space-y-2">
+                  {roles.map((r) => {
+                    const info = ROL_INFO[r.nombreRol] ?? { label: r.nombreRol, desc: '' }
+                    const checked = rolesSeleccionados.includes(r.id)
+                    return (
+                      <label
+                        key={r.id}
+                        className={`flex items-center gap-3 px-3.5 py-2.5 rounded-xl border cursor-pointer transition-all duration-200 ${
+                          checked
+                            ? 'bg-emerald-500/10 border-emerald-500/40'
+                            : 'bg-slate-800/60 border-slate-700/60 hover:border-slate-600'
+                        }`}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          onChange={() => toggleRol(r.id)}
+                          className="w-4 h-4 accent-emerald-500 cursor-pointer"
+                        />
+                        <span className="flex-1">
+                          <span className="block text-sm font-medium text-white">{info.label}</span>
+                          {info.desc && <span className="block text-xs text-slate-500">{info.desc}</span>}
+                        </span>
+                      </label>
+                    )
+                  })}
+                </div>
+              </div>
+            )}
 
             {error && (
               <div className="bg-red-500/10 border border-red-500/30 text-red-400 text-sm px-4 py-3 rounded-xl">

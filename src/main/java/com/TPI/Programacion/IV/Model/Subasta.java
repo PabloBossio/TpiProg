@@ -136,6 +136,11 @@ public class Subasta {
 
 
     public void cambiarEstado(EstadoSubasta nuevoEstado, Usuario responsable, String motivo) {
+        if (!esTransicionValida(this.estado, nuevoEstado)) {
+            throw new IllegalStateException(
+                    "Transición de estado inválida: " + this.estado + " → " + nuevoEstado);
+        }
+
         HistorialEstado registro = new HistorialEstado();
         registro.setEstadoAnterior(this.estado);
         registro.setEstadoNuevo(nuevoEstado);
@@ -145,5 +150,29 @@ public class Subasta {
 
         this.historialEstados.add(registro);
         this.estado = nuevoEstado;
+    }
+
+    /**
+     * Grafo estricto de transiciones permitido por las reglas de negocio.
+     * BORRADOR -> PUBLICADA -> ACTIVA -> {FINALIZADA | ADJUDICADA}
+     * PUBLICADA / ACTIVA -> CANCELADA
+     * ADJUDICADA -> EN_DISPUTA -> {ADJUDICADA | FINALIZADA | CANCELADA}
+     */
+    private static boolean esTransicionValida(EstadoSubasta desde, EstadoSubasta hasta) {
+        if (desde == null) {
+            return true; // estado inicial de la entidad recién creada
+        }
+        return switch (desde) {
+            case BORRADOR -> hasta == EstadoSubasta.PUBLICADA;
+            case PUBLICADA -> hasta == EstadoSubasta.ACTIVA || hasta == EstadoSubasta.CANCELADA;
+            case ACTIVA -> hasta == EstadoSubasta.FINALIZADA
+                    || hasta == EstadoSubasta.ADJUDICADA
+                    || hasta == EstadoSubasta.CANCELADA;
+            case ADJUDICADA -> hasta == EstadoSubasta.EN_DISPUTA;
+            case EN_DISPUTA -> hasta == EstadoSubasta.ADJUDICADA
+                    || hasta == EstadoSubasta.FINALIZADA
+                    || hasta == EstadoSubasta.CANCELADA;
+            case FINALIZADA, CANCELADA -> false;
+        };
     }
 }

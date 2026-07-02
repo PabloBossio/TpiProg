@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react'
+import { parseServerDate } from '../lib/dates'
 
 function calcularTiempo(fechaCierre) {
-  const diff = new Date(fechaCierre) - new Date()
+  const diff = parseServerDate(fechaCierre) - new Date()
   if (diff <= 0) return null
   return {
     dias: Math.floor(diff / 86400000),

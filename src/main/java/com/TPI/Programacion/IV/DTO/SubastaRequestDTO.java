@@ -10,7 +10,8 @@ public record SubastaRequestDTO(
         @Positive(message = "El precio base debe ser mayor a cero")
         BigDecimal precioBase,
 
-        @NotNull(message = "La fecha de inicio es obligatoria")
+        // Opcional: si no se envía, el backend la fija en la hora UTC actual del servidor
+        // (nunca se confía en la hora del cliente para esto).
         LocalDateTime fechaInicio,
 
         @NotNull(message = "La fecha de cierre es obligatoria")

@@ -23,14 +23,17 @@ public class UserDetailsServiceImpl implements UserDetailsService {
         Usuario usuario = usuarioRepository.findByNombreUsuario(username)
                 .orElseThrow(() -> new UsernameNotFoundException("Usuario no encontrado: " + username));
 
-        if (usuario.isEstaBloqueado()) {
-            throw new RuntimeException("El usuario se encuentra bloqueado.");
-        }
-
         List<SimpleGrantedAuthority> authorities = usuario.getRoles().stream()
                 .map(rol -> new SimpleGrantedAuthority("ROLE_" + rol.getNombreRol().toUpperCase()))
                 .collect(Collectors.toList());
 
-        return new User(usuario.getNombreUsuario(), usuario.getPasswordHash(), authorities);
+        return new User(
+                usuario.getNombreUsuario(),
+                usuario.getPasswordHash(),
+                true,
+                true,
+                true,
+                !usuario.isEstaBloqueado(),
+                authorities);
     }
 }

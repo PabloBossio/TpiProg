@@ -10,6 +10,7 @@ import com.TPI.Programacion.IV.Repository.UsuarioRepository;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -252,5 +253,192 @@ class SubastaServiceTest {
                 .doesNotThrowAnyException();
 
         verify(subastaRepository).save(any(Subasta.class));
+    }
+
+    // ═════════════════════════════════════════════════════════════════════════
+    // 4. Flujo BORRADOR → PUBLICADA al crear / publicar
+    // ═════════════════════════════════════════════════════════════════════════
+
+    @Test
+    void crearSubasta_exitosa_quedaPublicadaConHistorial() {
+        // Fecha de inicio en el futuro: no debe encadenar la activación inmediata
+        // (eso se prueba aparte en crearSubasta_sinFechaInicio_arrancaYaMismo).
+        LocalDateTime inicio = LocalDateTime.now(ZoneOffset.UTC).plusHours(2);
+        LocalDateTime cierre = inicio.plusDays(5);
+
+        Categoria cat = new Categoria();
+        cat.setId(1L);
+        cat.setNombre("Tech");
+
+        Usuario vendedor = new Usuario();
+        vendedor.setId(1L);
+        vendedor.setNombreUsuario("vendedor1");
+
+        when(categoryRepository.findById(1L)).thenReturn(Optional.of(cat));
+        when(usuarioRepository.findById(1L)).thenReturn(Optional.of(vendedor));
+        when(subastaRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        autenticar("vendedor1", "ROLE_SELLER");
+
+        SubastaRequestDTO req = new SubastaRequestDTO(
+                BigDecimal.valueOf(1000), inicio, cierre,
+                BigDecimal.valueOf(100), "desc", 1L,
+                new ProductoRequestDTO("Laptop", null, null));
+
+        service.crearSubasta(req, 1L);
+
+        ArgumentCaptor<Subasta> captor = ArgumentCaptor.forClass(Subasta.class);
+        verify(subastaRepository).save(captor.capture());
+        Subasta guardada = captor.getValue();
+
+        assertThat(guardada.getEstado()).isEqualTo(EstadoSubasta.PUBLICADA);
+        assertThat(guardada.getHistorialEstados()).hasSize(1);
+        assertThat(guardada.getHistorialEstados().get(0).getEstadoAnterior()).isEqualTo(EstadoSubasta.BORRADOR);
+        assertThat(guardada.getHistorialEstados().get(0).getEstadoNuevo()).isEqualTo(EstadoSubasta.PUBLICADA);
+    }
+
+    @Test
+    void crearSubasta_fechaCierreEnElPasado_lanzaIllegalArgumentException() {
+        LocalDateTime inicio = LocalDateTime.now(ZoneOffset.UTC).minusDays(10);
+        LocalDateTime cierre = LocalDateTime.now(ZoneOffset.UTC).minusDays(1); // ya pasó
+
+        Categoria cat = new Categoria();
+        cat.setId(1L);
+        Usuario vendedor = new Usuario();
+        vendedor.setId(1L);
+        vendedor.setNombreUsuario("vendedor1");
+
+        when(categoryRepository.findById(1L)).thenReturn(Optional.of(cat));
+        when(usuarioRepository.findById(1L)).thenReturn(Optional.of(vendedor));
+
+        SubastaRequestDTO req = new SubastaRequestDTO(
+                BigDecimal.valueOf(1000), inicio, cierre,
+                BigDecimal.valueOf(100), "desc", 1L,
+                new ProductoRequestDTO("Laptop", null, null));
+
+        assertThatThrownBy(() -> service.crearSubasta(req, 1L))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("posterior");
+
+        verify(subastaRepository, never()).save(any());
+    }
+
+    @Test
+    void crearSubasta_sinFechaInicio_usaRelojDelServidorYActivaDeInmediato() {
+        // fechaInicio null: el cliente no envía nada (evita el descalce de zona horaria
+        // y permite demos en vivo sin demoras).
+        LocalDateTime cierre = LocalDateTime.now(ZoneOffset.UTC).plusDays(3);
+
+        Categoria cat = new Categoria();
+        cat.setId(1L);
+        cat.setNombre("Tech");
+
+        Usuario vendedor = new Usuario();
+        vendedor.setId(1L);
+        vendedor.setNombreUsuario("vendedor1");
+
+        when(categoryRepository.findById(1L)).thenReturn(Optional.of(cat));
+        when(usuarioRepository.findById(1L)).thenReturn(Optional.of(vendedor));
+        when(subastaRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        autenticar("vendedor1", "ROLE_SELLER");
+
+        SubastaRequestDTO req = new SubastaRequestDTO(
+                BigDecimal.valueOf(1000), null, cierre,
+                BigDecimal.valueOf(100), "desc", 1L,
+                new ProductoRequestDTO("Laptop", null, null));
+
+        service.crearSubasta(req, 1L);
+
+        ArgumentCaptor<Subasta> captor = ArgumentCaptor.forClass(Subasta.class);
+        verify(subastaRepository).save(captor.capture());
+        Subasta guardada = captor.getValue();
+
+        assertThat(guardada.getFechaInicio()).isNotNull();
+        assertThat(guardada.getEstado()).isEqualTo(EstadoSubasta.ACTIVA);
+        assertThat(guardada.getHistorialEstados()).hasSize(2);
+        assertThat(guardada.getHistorialEstados().get(1).getEstadoNuevo()).isEqualTo(EstadoSubasta.ACTIVA);
+    }
+
+    @Test
+    void publicarSubasta_fechaInicioYaAlcanzada_activaDeInmediato() {
+        autenticar("vendedor1", "ROLE_SELLER");
+
+        Subasta subasta = subastaBase(EstadoSubasta.BORRADOR);
+        subasta.setFechaInicio(LocalDateTime.now(ZoneOffset.UTC).minusMinutes(5)); // ya llegó la hora
+        subasta.setFechaCierre(LocalDateTime.now(ZoneOffset.UTC).plusDays(3));
+
+        when(subastaRepository.findById(1L)).thenReturn(Optional.of(subasta));
+        when(usuarioRepository.findByNombreUsuario("vendedor1")).thenReturn(Optional.of(subasta.getVendedor()));
+        when(subastaRepository.save(any())).thenReturn(subasta);
+
+        service.publicarSubasta(1L);
+
+        assertThat(subasta.getEstado()).isEqualTo(EstadoSubasta.ACTIVA);
+        assertThat(subasta.getHistorialEstados()).hasSize(2);
+    }
+
+    @Test
+    void publicarSubasta_dueñoPublicaSuBorrador_exitoso() {
+        autenticar("vendedor1", "ROLE_SELLER");
+
+        Subasta subasta = subastaBase(EstadoSubasta.BORRADOR);
+        subasta.setHistorialEstados(new ArrayList<>());
+
+        when(subastaRepository.findById(1L)).thenReturn(Optional.of(subasta));
+        when(usuarioRepository.findByNombreUsuario("vendedor1")).thenReturn(Optional.of(subasta.getVendedor()));
+        when(subastaRepository.save(any())).thenReturn(subasta);
+
+        assertThatCode(() -> service.publicarSubasta(1L)).doesNotThrowAnyException();
+        assertThat(subasta.getEstado()).isEqualTo(EstadoSubasta.PUBLICADA);
+    }
+
+    @Test
+    void publicarSubasta_usuarioAjeno_lanzaSecurityException() {
+        autenticar("intruso", "ROLE_SELLER");
+
+        Subasta subasta = subastaBase(EstadoSubasta.BORRADOR);
+        subasta.setHistorialEstados(new ArrayList<>());
+
+        when(subastaRepository.findById(1L)).thenReturn(Optional.of(subasta));
+
+        assertThatThrownBy(() -> service.publicarSubasta(1L))
+                .isInstanceOf(SecurityException.class);
+
+        verify(subastaRepository, never()).save(any());
+    }
+
+    // ═════════════════════════════════════════════════════════════════════════
+    // 5. Cancelación durante EN_DISPUTA
+    // ═════════════════════════════════════════════════════════════════════════
+
+    @Test
+    void cancelarSubasta_enDisputa_adminPuedeCancelar() {
+        autenticar("superadmin", "ROLE_ADMIN");
+
+        Usuario admin = new Usuario();
+        admin.setId(99L);
+        admin.setNombreUsuario("superadmin");
+
+        Subasta subasta = subastaBase(EstadoSubasta.EN_DISPUTA);
+
+        when(subastaRepository.findById(1L)).thenReturn(Optional.of(subasta));
+        when(usuarioRepository.findByNombreUsuario("superadmin")).thenReturn(Optional.of(admin));
+        when(subastaRepository.save(any())).thenReturn(subasta);
+
+        assertThatCode(() -> service.cancelarSubasta(1L, "resolución administrativa"))
+                .doesNotThrowAnyException();
+        assertThat(subasta.getEstado()).isEqualTo(EstadoSubasta.CANCELADA);
+    }
+
+    @Test
+    void cancelarSubasta_finalizada_lanzaIllegalStateException() {
+        autenticar("superadmin", "ROLE_ADMIN");
+
+        Subasta subasta = subastaBase(EstadoSubasta.FINALIZADA);
+        when(subastaRepository.findById(1L)).thenReturn(Optional.of(subasta));
+
+        assertThatThrownBy(() -> service.cancelarSubasta(1L, "ya terminó"))
+                .isInstanceOf(IllegalStateException.class);
+
+        verify(subastaRepository, never()).save(any());
     }
 }

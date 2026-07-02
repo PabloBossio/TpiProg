@@ -18,8 +18,10 @@ public class SubastaSchedulerService {
     @Autowired
     private SubastaRepository subastaRepository;
 
-    // Corre cada 60 segundos
-    @Scheduled(fixedRate = 60000)
+    // Corre cada 15 segundos: barrido de respaldo para subastas que nadie consulta activamente.
+    // Las consultas puntuales (SubastaService.obtenerPorId/procesarPuja) sincronizan el estado
+    // al vuelo, así que este intervalo solo acota el peor caso para subastas "olvidadas".
+    @Scheduled(fixedRate = 15000)
     @Transactional
     public void procesarTransicionesAutomaticas() {
         LocalDateTime ahora = LocalDateTime.now(ZoneOffset.UTC);

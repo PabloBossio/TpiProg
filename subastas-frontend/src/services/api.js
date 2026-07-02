@@ -1,4 +1,5 @@
 import axios from 'axios'
+import { emitToast } from '../lib/toastBus'
 
 const api = axios.create({ baseURL: '/api' })
 
@@ -12,9 +13,17 @@ api.interceptors.response.use(
   (r) => r,
   (error) => {
     if (error.response?.status === 401 || error.response?.status === 403) {
+      const enLogin = window.location.pathname === '/login'
       localStorage.removeItem('token')
       localStorage.removeItem('user')
-      window.location.href = '/login'
+      if (!enLogin) {
+        emitToast({ message: 'Tu sesión expiró o no tenés permisos. Volvé a iniciar sesión.', type: 'error' })
+        window.location.href = '/login'
+      }
+    } else if (!error.response) {
+      emitToast({ message: 'No se pudo conectar con el servidor. Verificá tu conexión.', type: 'error' })
+    } else if (error.response.status >= 500) {
+      emitToast({ message: 'Ocurrió un error inesperado en el servidor.', type: 'error' })
     }
     return Promise.reject(error)
   }
@@ -22,14 +31,19 @@ api.interceptors.response.use(
 
 export const authService = {
   login: (username, password) => api.post('/auth/login', { username, password }),
-  register: (nombreUsuario, email, password) =>
-    api.post('/usuarios', { nombreUsuario, email, password, rolesIds: [] }),
+  register: (nombreUsuario, email, password, rolesIds = []) =>
+    api.post('/usuarios', { nombreUsuario, email, password, rolesIds }),
+}
+
+export const rolService = {
+  listar: () => api.get('/roles'),
 }
 
 export const subastaService = {
   listar: (estado) => api.get('/subastas', { params: estado ? { estado } : {} }),
   obtener: (id) => api.get(`/subastas/${id}`),
   crear: (data, vendedorId) => api.post('/subastas', data, { params: { vendedorId } }),
+  publicar: (subastaId) => api.put(`/subastas/${subastaId}/publicar`),
   pujar: (subastaId, oferenteId, monto) =>
     api.post(`/subastas/${subastaId}/pujar`, { monto }, { params: { oferenteId } }),
   cancelar: (subastaId, motivo) => api.put(`/subastas/${subastaId}/cancelar`, { motivo }),
@@ -46,14 +60,15 @@ export const usuarioService = {
 
 export const categoriaService = {
   listar: () => api.get('/categorias'),
+  crear: (nombre) => api.post('/categorias', { nombre }),
 }
 
 export const reclamoService = {
   listar: () => api.get('/reclamos'),
   abrir: (subastaId, usuarioId, motivo, descripcion) =>
     api.post('/reclamos', { subastaId, motivo, descripcion }, { params: { usuarioId } }),
-  resolver: (id, resolucion, estadoFinal) =>
-    api.put(`/reclamos/${id}/resolver`, { resolucion, estadoFinal }),
+  resolver: (id, aceptado, comentario) =>
+    api.put(`/reclamos/${id}/resolver`, { aceptado, comentario }),
 }
 
 export const notificacionService = {

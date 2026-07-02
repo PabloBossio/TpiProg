@@ -1,5 +1,6 @@
 package com.TPI.Programacion.IV.Controller;
 
+import com.TPI.Programacion.IV.Exception.RecursoNoEncontradoException;
 import com.TPI.Programacion.IV.Model.Usuario;
 import com.TPI.Programacion.IV.Repository.UsuarioRepository;
 import com.TPI.Programacion.IV.Security.JwtUtils;
@@ -35,7 +36,7 @@ public class AuthController {
         final String jwt = jwtUtils.generateToken(userDetails);
 
         Usuario usuario = usuarioRepository.findByNombreUsuario(username)
-                .orElseThrow(() -> new RuntimeException("Usuario no encontrado"));
+                .orElseThrow(() -> new RecursoNoEncontradoException("Usuario no encontrado"));
 
         List<String> roles = userDetails.getAuthorities().stream()
                 .map(GrantedAuthority::getAuthority)

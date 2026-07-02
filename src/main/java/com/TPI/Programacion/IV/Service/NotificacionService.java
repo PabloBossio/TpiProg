@@ -1,6 +1,7 @@
 package com.TPI.Programacion.IV.Service;
 
 import com.TPI.Programacion.IV.DTO.NotificacionResponseDTO;
+import com.TPI.Programacion.IV.Exception.RecursoNoEncontradoException;
 import com.TPI.Programacion.IV.Model.Notificacion;
 import com.TPI.Programacion.IV.Repository.NotificacionRepository;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -29,7 +30,7 @@ public class NotificacionService {
     @Transactional
     public void marcarLeida(Long id) {
         Notificacion n = notificacionRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Notificación no encontrada"));
+                .orElseThrow(() -> new RecursoNoEncontradoException("Notificación no encontrada"));
         n.setLeido(true);
         notificacionRepository.save(n);
     }

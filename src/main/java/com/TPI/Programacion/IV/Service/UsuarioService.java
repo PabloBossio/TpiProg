@@ -2,6 +2,7 @@ package com.TPI.Programacion.IV.Service;
 
 import com.TPI.Programacion.IV.DTO.UsuarioRequestDTO;
 import com.TPI.Programacion.IV.DTO.UsuarioResponseDTO;
+import com.TPI.Programacion.IV.Exception.RecursoNoEncontradoException;
 import com.TPI.Programacion.IV.Model.Rol;
 import com.TPI.Programacion.IV.Model.Usuario;
 import com.TPI.Programacion.IV.Repository.RolRepository;
@@ -11,6 +12,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -30,7 +32,18 @@ public class UsuarioService {
         usuario.setPasswordHash(passwordEncoder.encode(request.password()));
         usuario.setEstaBloqueado(false);
 
-        rolRepository.findByNombreRol("COMPRADOR").ifPresent(rol -> usuario.getRoles().add(rol));
+        List<Rol> rolesSeleccionados = new ArrayList<>();
+        if (request.rolesIds() != null && !request.rolesIds().isEmpty()) {
+            for (Long rolId : request.rolesIds()) {
+                Rol rol = rolRepository.findById(rolId)
+                        .orElseThrow(() -> new IllegalArgumentException("El rol seleccionado (id " + rolId + ") no existe."));
+                rolesSeleccionados.add(rol);
+            }
+        } else {
+            // Sin selección explícita: todo usuario nuevo es al menos comprador (USER)
+            rolRepository.findByNombreRol("USER").ifPresent(rolesSeleccionados::add);
+        }
+        usuario.setRoles(rolesSeleccionados);
 
         return mapearADto(usuarioRepository.save(usuario));
     }
@@ -43,14 +56,14 @@ public class UsuarioService {
     @Transactional(readOnly = true)
     public UsuarioResponseDTO obtenerPorId(Long id) {
         Usuario usuario = usuarioRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Usuario no encontrado con ID: " + id));
+                .orElseThrow(() -> new RecursoNoEncontradoException("Usuario no encontrado con ID: " + id));
         return mapearADto(usuario);
     }
 
     @Transactional
     public UsuarioResponseDTO bloquear(Long id) {
         Usuario usuario = usuarioRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Usuario no encontrado con ID: " + id));
+                .orElseThrow(() -> new RecursoNoEncontradoException("Usuario no encontrado con ID: " + id));
         usuario.bloquearUsuario();
         return mapearADto(usuarioRepository.save(usuario));
     }
@@ -58,7 +71,7 @@ public class UsuarioService {
     @Transactional
     public UsuarioResponseDTO desbloquear(Long id) {
         Usuario usuario = usuarioRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Usuario no encontrado con ID: " + id));
+                .orElseThrow(() -> new RecursoNoEncontradoException("Usuario no encontrado con ID: " + id));
         usuario.desbloquearUsuario();
         return mapearADto(usuarioRepository.save(usuario));
     }

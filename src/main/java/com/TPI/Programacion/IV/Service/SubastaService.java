@@ -1,6 +1,7 @@
 package com.TPI.Programacion.IV.Service;
 
 import com.TPI.Programacion.IV.DTO.*;
+import com.TPI.Programacion.IV.Exception.RecursoNoEncontradoException;
 import com.TPI.Programacion.IV.Model.*;
 import com.TPI.Programacion.IV.Repository.*;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -35,7 +36,7 @@ public class SubastaService {
     @Transactional(readOnly = true)
     public SubastaResponseDTO obtenerPorId(Long id) {
         Subasta subasta = subastaRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Subasta no encontrada con id: " + id));
+                .orElseThrow(() -> new RecursoNoEncontradoException("Subasta no encontrada con id: " + id));
         return mapearADto(subasta);
     }
 
@@ -50,9 +51,9 @@ public class SubastaService {
     @Transactional
     public SubastaResponseDTO crearSubasta(SubastaRequestDTO request, Long vendedorId) {
         Categoria categoria = categoryRepository.findById(request.categoriaId())
-                .orElseThrow(() -> new RuntimeException("Categoría no encontrada"));
+                .orElseThrow(() -> new RecursoNoEncontradoException("Categoría no encontrada"));
         Usuario vendedor = usuarioRepository.findById(vendedorId)
-                .orElseThrow(() -> new RuntimeException("Vendedor no encontrado"));
+                .orElseThrow(() -> new RecursoNoEncontradoException("Vendedor no encontrado"));
 
         Producto producto = new Producto();
         producto.setNombre(request.producto().nombre());
@@ -62,21 +63,97 @@ public class SubastaService {
         Subasta subasta = new Subasta();
         subasta.setPrecioBase(request.precioBase());
         subasta.setMontoActual(request.precioBase());
-        subasta.setFechaInicio(request.fechaInicio());
+        // Si no se especifica fecha de inicio, arranca "ya": se usa el reloj del servidor,
+        // nunca uno provisto (ni inferido) por el cliente.
+        subasta.setFechaInicio(request.fechaInicio() != null
+                ? request.fechaInicio()
+                : LocalDateTime.now(ZoneOffset.UTC));
         subasta.setFechaCierre(request.fechaCierre());
         subasta.setIncrementoMinimo(request.incrementoMinimo());
         subasta.setDescripcion(request.descripcion());
-        subasta.setEstado(EstadoSubasta.ACTIVA);
+        subasta.setEstado(EstadoSubasta.BORRADOR); // Estado inicial del flujo BORRADOR → PUBLICADA → ACTIVA
         subasta.setCategoria(categoria);
         subasta.setVendedor(vendedor);
         subasta.setProducto(producto);
 
-        if (!subasta.validarPeriodoMaximo()) {
-            throw new IllegalArgumentException("El período de la subasta excede el máximo permitido de 2 semanas.");
-        }
+        validarVentanaTemporal(subasta);
+
+        // El botón "Publicar subasta" del vendedor crea Y publica en un mismo paso;
+        // la transición BORRADOR → PUBLICADA queda registrada en el historial igual.
+        subasta.cambiarEstado(EstadoSubasta.PUBLICADA, vendedor, "Subasta publicada por el vendedor al momento de la creación.");
+        activarSiLlegoLaHora(subasta, vendedor);
 
         Subasta guardada = subastaRepository.save(subasta);
         return mapearADto(guardada);
+    }
+
+    // ─── Publicar (BORRADOR → PUBLICADA) ────────────────────────────────────────
+
+    @Transactional
+    public SubastaResponseDTO publicarSubasta(Long subastaId) {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        String username = auth.getName();
+        boolean esAdmin = auth.getAuthorities().stream()
+                .anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN"));
+
+        Subasta subasta = subastaRepository.findById(subastaId)
+                .orElseThrow(() -> new RecursoNoEncontradoException("Subasta no encontrada"));
+
+        if (!esAdmin && !subasta.getVendedor().getNombreUsuario().equals(username)) {
+            throw new SecurityException("No tenés permiso para publicar esta subasta.");
+        }
+
+        validarVentanaTemporal(subasta);
+
+        Usuario responsable = usuarioRepository.findByNombreUsuario(username)
+                .orElseThrow(() -> new RecursoNoEncontradoException("Usuario no encontrado"));
+
+        subasta.cambiarEstado(EstadoSubasta.PUBLICADA, responsable, "Subasta publicada manualmente por el vendedor.");
+        activarSiLlegoLaHora(subasta, responsable);
+        return mapearADto(subastaRepository.save(subasta));
+    }
+
+    private void validarVentanaTemporal(Subasta subasta) {
+        if (!subasta.validarPeriodoMaximo()) {
+            throw new IllegalArgumentException("El período de la subasta excede el máximo permitido de 2 semanas.");
+        }
+        if (!subasta.getFechaCierre().isAfter(LocalDateTime.now(ZoneOffset.UTC))) {
+            throw new IllegalArgumentException("La fecha de cierre debe ser posterior al momento actual del servidor.");
+        }
+    }
+
+    /**
+     * Si la fecha de inicio ya se alcanzó al momento de publicar (típicamente porque
+     * se dejó vacía para arrancar "ya", útil en demos en vivo), activa la subasta
+     * en el acto en lugar de esperar al próximo barrido del scheduler.
+     */
+    private void activarSiLlegoLaHora(Subasta subasta, Usuario responsable) {
+        if (!LocalDateTime.now(ZoneOffset.UTC).isBefore(subasta.getFechaInicio())) {
+            subasta.cambiarEstado(EstadoSubasta.ACTIVA, responsable, "Inicio inmediato: la fecha de inicio ya se había alcanzado.");
+        }
+    }
+
+    /**
+     * Corrige el estado de la subasta según el reloj del servidor si el scheduler todavía
+     * no pasó por ella (evita mostrar/operar sobre un estado desactualizado entre ticks).
+     * Misma lógica que SubastaSchedulerService, aplicada puntualmente sobre una instancia.
+     */
+    private void sincronizarEstadoAutomatico(Subasta subasta) {
+        LocalDateTime ahora = LocalDateTime.now(ZoneOffset.UTC);
+
+        if (subasta.getEstado() == EstadoSubasta.PUBLICADA && !ahora.isBefore(subasta.getFechaInicio())) {
+            subasta.cambiarEstado(EstadoSubasta.ACTIVA, null, "Inicio automático programado");
+            subastaRepository.save(subasta);
+        } else if (subasta.getEstado() == EstadoSubasta.ACTIVA && ahora.isAfter(subasta.getFechaCierre())) {
+            if (subasta.getGanador() != null) {
+                subasta.setFechaAdjudicacion(ahora);
+                subasta.cambiarEstado(EstadoSubasta.ADJUDICADA, null,
+                        "Adjudicada automáticamente. Precio final: " + subasta.getMontoActual());
+            } else {
+                subasta.cambiarEstado(EstadoSubasta.FINALIZADA, null, "Finalizada sin pujas");
+            }
+            subastaRepository.save(subasta);
+        }
     }
 
     // ─── Pujar ────────────────────────────────────────────────────────────────
@@ -84,9 +161,11 @@ public class SubastaService {
     @Transactional
     public SubastaResponseDTO procesarPuja(Long subastaId, Long usuarioOferenteId, PujaRequestDTO pujaRequest) {
         Subasta subasta = subastaRepository.findById(subastaId)
-                .orElseThrow(() -> new RuntimeException("Subasta no encontrada"));
+                .orElseThrow(() -> new RecursoNoEncontradoException("Subasta no encontrada"));
         Usuario oferente = usuarioRepository.findById(usuarioOferenteId)
-                .orElseThrow(() -> new RuntimeException("Usuario oferente no encontrado"));
+                .orElseThrow(() -> new RecursoNoEncontradoException("Usuario oferente no encontrado"));
+
+        sincronizarEstadoAutomatico(subasta);
 
         if (!subasta.validarNuevaPuja(pujaRequest.monto(), oferente)) {
             throw new IllegalStateException("La puja no cumple con los requisitos mínimos o la subasta no está activa.");
@@ -115,11 +194,12 @@ public class SubastaService {
                 .anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN"));
 
         Subasta subasta = subastaRepository.findById(subastaId)
-                .orElseThrow(() -> new RuntimeException("Subasta no encontrada"));
+                .orElseThrow(() -> new RecursoNoEncontradoException("Subasta no encontrada"));
 
-        if (subasta.getEstado() == EstadoSubasta.FINALIZADA
-                || subasta.getEstado() == EstadoSubasta.ADJUDICADA
-                || subasta.getEstado() == EstadoSubasta.CANCELADA) {
+        // CANCELADA solo es una transición válida desde PUBLICADA, ACTIVA o EN_DISPUTA (ver Subasta.cambiarEstado)
+        if (subasta.getEstado() != EstadoSubasta.PUBLICADA
+                && subasta.getEstado() != EstadoSubasta.ACTIVA
+                && subasta.getEstado() != EstadoSubasta.EN_DISPUTA) {
             throw new IllegalStateException("La subasta no puede ser cancelada en su estado actual.");
         }
 
@@ -134,7 +214,7 @@ public class SubastaService {
         }
 
         Usuario responsable = usuarioRepository.findByNombreUsuario(username)
-                .orElseThrow(() -> new RuntimeException("Usuario no encontrado"));
+                .orElseThrow(() -> new RecursoNoEncontradoException("Usuario no encontrado"));
 
         subasta.cambiarEstado(EstadoSubasta.CANCELADA, responsable, motivo);
         return mapearADto(subastaRepository.save(subasta));

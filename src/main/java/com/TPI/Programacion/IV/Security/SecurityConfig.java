@@ -40,6 +40,8 @@ public class SecurityConfig {
                         // Registro y login abiertos
                         .requestMatchers(HttpMethod.POST, "/api/usuarios").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/auth/login").permitAll()
+                        // Lista de roles disponibles: necesaria en el formulario de registro (aún sin sesión)
+                        .requestMatchers(HttpMethod.GET, "/api/roles").permitAll()
                         // Todos los endpoints de API requieren JWT
                         .requestMatchers("/api/**").authenticated()
                         // Recursos estáticos y rutas SPA no necesitan JWT

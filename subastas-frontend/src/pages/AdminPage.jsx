@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { Link } from 'react-router-dom'
 import { usuarioService, reclamoService } from '../services/api'
+import { parseServerDate } from '../lib/dates'
 
 function TabButton({ active, onClick, children }) {
   return (
@@ -99,13 +100,12 @@ function UsuariosPanel() {
   )
 }
 
-const ESTADOS_RESOLUCION = ['ADJUDICADA', 'FINALIZADA', 'CANCELADA']
-
 function DisputasPanel() {
   const [reclamos, setReclamos] = useState([])
   const [loading, setLoading] = useState(true)
   const [resolviendo, setResolviendo] = useState(null)
-  const [form, setForm] = useState({ resolucion: '', estadoFinal: 'ADJUDICADA' })
+  const [comentario, setComentario] = useState('')
+  const [accionLoading, setAccionLoading] = useState(false)
   const [error, setError] = useState('')
 
   const cargar = useCallback(() => {
@@ -117,16 +117,18 @@ function DisputasPanel() {
 
   useEffect(() => { cargar() }, [cargar])
 
-  const handleResolver = async (id) => {
-    if (!form.resolucion.trim()) { setError('Escribí la resolución antes de confirmar.'); return }
-    setError('')
+  const handleResolver = async (id, aceptado) => {
+    setAccionLoading(true); setError('')
     try {
-      await reclamoService.resolver(id, form.resolucion, form.estadoFinal)
+      await reclamoService.resolver(id, aceptado, comentario.trim() || null)
       setResolviendo(null)
-      setForm({ resolucion: '', estadoFinal: 'ADJUDICADA' })
+      setComentario('')
       cargar()
-    } catch {
-      setError('Error al resolver el reclamo.')
+    } catch (err) {
+      const msg = err.response?.data?.message ?? 'Error al resolver el reclamo.'
+      setError(typeof msg === 'string' ? msg : 'Error al resolver el reclamo.')
+    } finally {
+      setAccionLoading(false)
     }
   }
 
@@ -161,11 +163,13 @@ function DisputasPanel() {
               </Link>
               <p className="text-xs text-slate-500 mt-0.5">
                 Abierto por <span className="text-slate-400 font-medium">{r.usuarioDemandanteNombre}</span>
-                {' · '}{new Date(r.fechaCreacion).toLocaleString('es-AR')}
+                {' · '}{parseServerDate(r.fechaCreacion).toLocaleString('es-AR')}
               </p>
             </div>
-            {r.resolucionAdministrativa ? (
-              <span className="shrink-0 text-xs bg-emerald-500/15 text-emerald-400 px-2.5 py-1 rounded-full border border-emerald-500/20 font-medium">Resuelto</span>
+            {r.resultado === 'ACEPTADO' ? (
+              <span className="shrink-0 text-xs bg-emerald-500/15 text-emerald-400 px-2.5 py-1 rounded-full border border-emerald-500/20 font-medium">Aceptado</span>
+            ) : r.resultado === 'RECHAZADO' ? (
+              <span className="shrink-0 text-xs bg-slate-500/15 text-slate-400 px-2.5 py-1 rounded-full border border-slate-500/20 font-medium">Rechazado</span>
             ) : (
               <span className="shrink-0 text-xs bg-orange-500/15 text-orange-400 px-2.5 py-1 rounded-full border border-orange-500/20 font-medium">Pendiente</span>
             )}
@@ -175,35 +179,42 @@ function DisputasPanel() {
           <p className="text-sm text-slate-500 mb-4">{r.descripcion}</p>
 
           {r.resolucionAdministrativa ? (
-            <div className="bg-emerald-500/8 border border-emerald-500/20 rounded-xl px-4 py-3 text-sm text-emerald-400">
+            <div className={`border rounded-xl px-4 py-3 text-sm ${
+              r.resultado === 'ACEPTADO'
+                ? 'bg-emerald-500/8 border-emerald-500/20 text-emerald-400'
+                : 'bg-slate-800/40 border-slate-700/50 text-slate-400'
+            }`}>
               <span className="font-semibold">Resolución:</span> {r.resolucionAdministrativa}
             </div>
           ) : resolviendo === r.id ? (
             <div className="border border-amber-500/20 bg-amber-500/8 rounded-2xl p-4 space-y-3">
               <textarea
-                value={form.resolucion}
-                onChange={e => setForm(f => ({ ...f, resolucion: e.target.value }))}
-                placeholder="Escribí la resolución administrativa..."
-                rows={3}
+                value={comentario}
+                onChange={e => setComentario(e.target.value)}
+                placeholder="Comentario opcional para el registro de la resolución..."
+                rows={2}
+                maxLength={500}
                 className="w-full px-3.5 py-2.5 bg-slate-900/60 rounded-xl border border-slate-700/60 focus:outline-none focus:ring-2 focus:ring-amber-500/50 focus:border-amber-500/40 text-slate-300 placeholder-slate-600 text-sm resize-none transition-all duration-200"
               />
-              <div className="flex items-center gap-3 flex-wrap">
-                <select
-                  value={form.estadoFinal}
-                  onChange={e => setForm(f => ({ ...f, estadoFinal: e.target.value }))}
-                  className="text-sm px-3.5 py-2.5 bg-slate-900/60 rounded-xl border border-slate-700/60 focus:outline-none focus:ring-2 focus:ring-amber-500/50 text-slate-300"
-                >
-                  {ESTADOS_RESOLUCION.map(e => <option key={e} value={e}>{e}</option>)}
-                </select>
+              <div className="flex items-center gap-2 flex-wrap">
                 <button
-                  onClick={() => handleResolver(r.id)}
-                  className="text-sm bg-amber-500 hover:bg-amber-400 text-white font-semibold px-4 py-2 rounded-xl cursor-pointer transition-all duration-200 shadow-lg shadow-amber-500/20"
+                  onClick={() => handleResolver(r.id, true)}
+                  disabled={accionLoading}
+                  className="text-sm bg-emerald-600 hover:bg-emerald-500 disabled:bg-slate-700 disabled:text-slate-500 text-white font-semibold px-4 py-2 rounded-xl cursor-pointer transition-all duration-200 shadow-lg shadow-emerald-500/20 disabled:cursor-not-allowed"
                 >
-                  Confirmar
+                  Aceptar Reclamo (Devolver fondos)
                 </button>
                 <button
-                  onClick={() => { setResolviendo(null); setError('') }}
-                  className="text-sm text-slate-500 hover:text-slate-300 cursor-pointer transition-colors"
+                  onClick={() => handleResolver(r.id, false)}
+                  disabled={accionLoading}
+                  className="text-sm bg-red-600 hover:bg-red-500 disabled:bg-slate-700 disabled:text-slate-500 text-white font-semibold px-4 py-2 rounded-xl cursor-pointer transition-all duration-200 shadow-lg shadow-red-500/20 disabled:cursor-not-allowed"
+                >
+                  Rechazar Reclamo (Liberar fondos)
+                </button>
+                <button
+                  onClick={() => { setResolviendo(null); setComentario(''); setError('') }}
+                  disabled={accionLoading}
+                  className="text-sm text-slate-500 hover:text-slate-300 cursor-pointer transition-colors disabled:cursor-not-allowed"
                 >
                   Cancelar
                 </button>

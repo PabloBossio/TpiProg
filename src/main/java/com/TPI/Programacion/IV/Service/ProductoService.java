@@ -3,6 +3,7 @@ package com.TPI.Programacion.IV.Service;
 
 import com.TPI.Programacion.IV.DTO.ProductoRequestDTO;
 import com.TPI.Programacion.IV.DTO.ProductoResponseDTO;
+import com.TPI.Programacion.IV.Exception.RecursoNoEncontradoException;
 import com.TPI.Programacion.IV.Model.Producto;
 import com.TPI.Programacion.IV.Repository.ProductoRepository;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -19,7 +20,7 @@ public class ProductoService {
     public Producto crear(Producto producto){
 
         if(producto.getNombre() == null || producto.getNombre().isEmpty()){
-            throw new RuntimeException("El producto debe tener nombre");
+            throw new IllegalArgumentException("El producto debe tener nombre");
         }
 
         return productoRepository.save(producto);
@@ -32,7 +33,7 @@ public class ProductoService {
     public Producto buscarPorId(Long id){
 
         return productoRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Producto no encontrado"));
+                .orElseThrow(() -> new RecursoNoEncontradoException("Producto no encontrado"));
     }
 
     public Producto editar(Long id, Producto productoActualizado){

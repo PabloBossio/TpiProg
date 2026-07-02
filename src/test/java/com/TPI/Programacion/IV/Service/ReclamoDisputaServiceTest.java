@@ -5,18 +5,24 @@ import com.TPI.Programacion.IV.Model.*;
 import com.TPI.Programacion.IV.Repository.ReclamoDisputaRepository;
 import com.TPI.Programacion.IV.Repository.SubastaRepository;
 import com.TPI.Programacion.IV.Repository.UsuarioRepository;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.security.core.context.SecurityContextHolder;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
+import java.util.List;
 import java.util.Optional;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
@@ -34,6 +40,18 @@ class ReclamoDisputaServiceTest {
     SubastaRepository subastaRepository;
     @Mock
     UsuarioRepository usuarioRepository;
+
+    @AfterEach
+    void limpiarContexto() {
+        SecurityContextHolder.clearContext();
+    }
+
+    private void autenticar(String username, String... roles) {
+        List<SimpleGrantedAuthority> auths = new ArrayList<>();
+        for (String r : roles) auths.add(new SimpleGrantedAuthority(r));
+        SecurityContextHolder.getContext().setAuthentication(
+                new UsernamePasswordAuthenticationToken(username, null, auths));
+    }
 
     // ───── Helper ─────────────────────────────────────────────────────────────
 
@@ -171,5 +189,122 @@ class ReclamoDisputaServiceTest {
         assertThatThrownBy(() -> service.crearReclamo(req, 99L))
                 .isInstanceOf(SecurityException.class)
                 .hasMessageContaining("vendedor");
+    }
+
+    // ═════════════════════════════════════════════════════════════════════════
+    // 4. Un reclamo ya resuelto no puede volver a resolverse
+    // ═════════════════════════════════════════════════════════════════════════
+
+    @Test
+    void resolver_reclamoYaResuelto_lanzaIllegalStateException() {
+        autenticar("superadmin", "ROLE_ADMIN");
+
+        Usuario admin = new Usuario();
+        admin.setId(50L);
+        admin.setNombreUsuario("superadmin");
+
+        ReclamoDisputa reclamo = new ReclamoDisputa();
+        reclamo.setId(10L);
+        reclamo.setResolucionAdministrativa("Ya se resolvió a favor del comprador.");
+
+        when(usuarioRepository.findByNombreUsuario("superadmin")).thenReturn(Optional.of(admin));
+        when(reclamoRepository.findById(10L)).thenReturn(Optional.of(reclamo));
+
+        assertThatThrownBy(() -> service.resolver(10L, true, null))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("ya fue resuelto");
+    }
+
+    // ═════════════════════════════════════════════════════════════════════════
+    // 5. Resolución con las dos opciones fijas: Aceptar / Rechazar
+    // ═════════════════════════════════════════════════════════════════════════
+
+    @Test
+    void resolver_aceptado_finalizaSubastaYMarcaResultado() {
+        autenticar("superadmin", "ROLE_ADMIN");
+
+        Usuario admin = new Usuario();
+        admin.setId(50L);
+        admin.setNombreUsuario("superadmin");
+
+        Usuario vendedor = new Usuario();
+        vendedor.setId(1L);
+        vendedor.setNombreUsuario("vendedor1");
+
+        Subasta subasta = subastaAdjudicada(LocalDateTime.now(ZoneOffset.UTC).minusHours(1), vendedor, vendedor);
+        subasta.setEstado(EstadoSubasta.EN_DISPUTA);
+
+        ReclamoDisputa reclamo = new ReclamoDisputa();
+        reclamo.setId(10L);
+        reclamo.setSubasta(subasta);
+
+        when(usuarioRepository.findByNombreUsuario("superadmin")).thenReturn(Optional.of(admin));
+        when(reclamoRepository.findById(10L)).thenReturn(Optional.of(reclamo));
+        when(reclamoRepository.save(any())).thenReturn(reclamo);
+        when(subastaRepository.save(any())).thenReturn(subasta);
+
+        service.resolver(10L, true, "Se verificó el reclamo del comprador.");
+
+        assertThat(subasta.getEstado()).isEqualTo(EstadoSubasta.FINALIZADA);
+        assertThat(reclamo.getResultado()).isEqualTo(ResultadoReclamo.ACEPTADO);
+        assertThat(reclamo.getResolucionAdministrativa()).contains("devuelve al vendedor");
+    }
+
+    @Test
+    void resolver_rechazado_vuelveAAdjudicadaYMarcaResultado() {
+        autenticar("superadmin", "ROLE_ADMIN");
+
+        Usuario admin = new Usuario();
+        admin.setId(50L);
+        admin.setNombreUsuario("superadmin");
+
+        Usuario vendedor = new Usuario();
+        vendedor.setId(1L);
+        vendedor.setNombreUsuario("vendedor1");
+
+        Subasta subasta = subastaAdjudicada(LocalDateTime.now(ZoneOffset.UTC).minusHours(1), vendedor, vendedor);
+        subasta.setEstado(EstadoSubasta.EN_DISPUTA);
+
+        ReclamoDisputa reclamo = new ReclamoDisputa();
+        reclamo.setId(11L);
+        reclamo.setSubasta(subasta);
+
+        when(usuarioRepository.findByNombreUsuario("superadmin")).thenReturn(Optional.of(admin));
+        when(reclamoRepository.findById(11L)).thenReturn(Optional.of(reclamo));
+        when(reclamoRepository.save(any())).thenReturn(reclamo);
+        when(subastaRepository.save(any())).thenReturn(subasta);
+
+        service.resolver(11L, false, null);
+
+        assertThat(subasta.getEstado()).isEqualTo(EstadoSubasta.ADJUDICADA);
+        assertThat(reclamo.getResultado()).isEqualTo(ResultadoReclamo.RECHAZADO);
+        assertThat(reclamo.getResolucionAdministrativa()).contains("liberan");
+    }
+
+    @Test
+    void resolver_subastaYaNoEnDisputa_lanzaIllegalStateException() {
+        autenticar("superadmin", "ROLE_ADMIN");
+
+        Usuario admin = new Usuario();
+        admin.setId(50L);
+        admin.setNombreUsuario("superadmin");
+
+        Usuario vendedor = new Usuario();
+        vendedor.setId(1L);
+        vendedor.setNombreUsuario("vendedor1");
+
+        Subasta subasta = subastaAdjudicada(LocalDateTime.now(ZoneOffset.UTC).minusHours(1), vendedor, vendedor);
+        subasta.setEstado(EstadoSubasta.ADJUDICADA); // ya no está en disputa
+
+        ReclamoDisputa reclamo = new ReclamoDisputa();
+        reclamo.setId(12L);
+        reclamo.setSubasta(subasta);
+
+        when(usuarioRepository.findByNombreUsuario("superadmin")).thenReturn(Optional.of(admin));
+        when(reclamoRepository.findById(12L)).thenReturn(Optional.of(reclamo));
+
+        assertThatThrownBy(() -> service.resolver(12L, true, null))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("disputa");
     }
 }

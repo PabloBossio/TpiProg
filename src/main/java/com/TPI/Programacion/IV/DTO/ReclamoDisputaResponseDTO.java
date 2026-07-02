@@ -8,6 +8,7 @@ public record ReclamoDisputaResponseDTO(
         String descripcion,
         LocalDateTime fechaCreacion,
         String resolucionAdministrativa,
+        String resultado,
         Long subastaId,
         Long usuarioDemandanteId,
         String usuarioDemandanteNombre

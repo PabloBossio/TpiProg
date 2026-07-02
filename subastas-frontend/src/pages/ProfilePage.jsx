@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { usuarioService } from '../services/api'
 import { useAuth } from '../context/AuthContext'
 import Countdown from '../components/Countdown'
+import { parseServerDate } from '../lib/dates'
 
 const ESTADO_BADGE = {
   ACTIVA:     { label: 'Activa',     cls: 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30' },
@@ -138,7 +139,7 @@ export default function ProfilePage() {
                       </span>
                     </div>
                     <p className="text-xs text-slate-600">
-                      {s.categoria?.nombre} · Cierra {new Date(s.fechaCierre).toLocaleDateString('es-AR')}
+                      {s.categoria?.nombre} · Cierra {parseServerDate(s.fechaCierre).toLocaleDateString('es-AR')}
                     </p>
                   </div>
                   <div className="text-right shrink-0">
@@ -184,7 +185,7 @@ export default function ProfilePage() {
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="font-semibold text-slate-300 text-sm">Puja #{p.id}</p>
-                  <p className="text-xs text-slate-600">{new Date(p.fechaPuja).toLocaleString('es-AR')}</p>
+                  <p className="text-xs text-slate-600">{parseServerDate(p.fechaPuja).toLocaleString('es-AR')}</p>
                 </div>
                 <p className="font-bold bg-gradient-to-r from-indigo-400 to-violet-400 bg-clip-text text-transparent text-base shrink-0">
                   ${Number(p.monto).toLocaleString('es-AR')}

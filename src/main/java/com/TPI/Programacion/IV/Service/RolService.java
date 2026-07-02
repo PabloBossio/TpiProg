@@ -8,6 +8,9 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.List;
+import java.util.stream.Collectors;
+
 @Service
 public class RolService {
 
@@ -21,5 +24,12 @@ public class RolService {
 
         Rol guardado = rolRepository.save(rol);
         return new RolResponseDTO(guardado.getId(), guardado.getNombreRol());
+    }
+
+    @Transactional(readOnly = true)
+    public List<RolResponseDTO> listar() {
+        return rolRepository.findAll().stream()
+                .map(r -> new RolResponseDTO(r.getId(), r.getNombreRol()))
+                .collect(Collectors.toList());
     }
 }

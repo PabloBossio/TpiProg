@@ -30,6 +30,10 @@ public class ReclamoDisputa {
     @Column(name = "resolucion_administrativa", length = 1000)
     private String resolucionAdministrativa;
 
+    @Enumerated(EnumType.STRING)
+    @Column(name = "resultado")
+    private ResultadoReclamo resultado;
+
     @OneToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "Subasta_id", nullable = false)
     private Subasta subasta;

@@ -2,6 +2,7 @@ package com.TPI.Programacion.IV.Service;
 
 import com.TPI.Programacion.IV.DTO.CategoriaRequestDTO;
 import com.TPI.Programacion.IV.DTO.CategoriaResponseDTO;
+import com.TPI.Programacion.IV.Exception.RecursoNoEncontradoException;
 import com.TPI.Programacion.IV.Model.Categoria;
 import com.TPI.Programacion.IV.Repository.CategoriaRepository;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -19,9 +20,14 @@ public class CategoriaService {
 
     @Transactional
     public CategoriaResponseDTO crear(CategoriaRequestDTO request) {
+        String nombre = request.nombre().trim();
+
+        if (categoriaRepository.findByNombreIgnoreCase(nombre).isPresent()) {
+            throw new IllegalArgumentException("Ya existe una categoría con ese nombre.");
+        }
 
         Categoria nuevaCategoria = new Categoria();
-        nuevaCategoria.setNombre(request.nombre());
+        nuevaCategoria.setNombre(nombre);
 
         Categoria guardada = categoriaRepository.save(nuevaCategoria);
 
@@ -40,7 +46,7 @@ public class CategoriaService {
     @Transactional(readOnly = true)
     public Categoria buscarPorId(Long id) {
         return categoriaRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Categoría no encontrada con el ID: " + id));
+                .orElseThrow(() -> new RecursoNoEncontradoException("Categoría no encontrada con el ID: " + id));
     }
 
     private CategoriaResponseDTO mapearADto(Categoria categoria) {
